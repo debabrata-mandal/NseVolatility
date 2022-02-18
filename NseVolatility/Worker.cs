@@ -2,7 +2,6 @@ using ConsoleTables;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -12,20 +11,10 @@ using TinyCsvParser;
 
 namespace NseVolatility
 {
-    public class Result
-    {
-        public string Symbol { get; set; }
-        public string Volatility { get; set; }
-        public string Change { get; set; }
-    }
     public class Worker : BackgroundService
     {
         private IEnumerable<DailyVolatility> volatilityData;
-
-        public Worker()
-        {
-
-        }
+        public Worker() { }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -34,7 +23,7 @@ namespace NseVolatility
             {
                 if (string.Equals(input, "X", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!GetDates())
+                    if (!GetDate())
                     {
                         Console.WriteLine("Dates are not valid please try again");
                         continue;
@@ -47,55 +36,46 @@ namespace NseVolatility
                             Volatility = $"{Math.Round(item.CurrentDayVolatility * 100, 4)}%",
                             Change = $"{Math.Round((item.CurrentDayVolatility - item.PreviousDayVolatility) * 100, 2)}%"
                         });
-                        DisplayResult(results);
+                        DisplayResult(results, volatilityData.FirstOrDefault().Date);
                     }
                 }
                 input = Console.ReadLine();
             }
             await Task.CompletedTask;
         }
-        private static void DisplayResult(IEnumerable<Result> results)
+        private static void DisplayResult(IEnumerable<Result> results, string date)
         {
+            ColorConsole.WriteWrappedHeader($"NSE data for {date}");
+
             ConsoleTable
             .From(results)
             .Configure(o => o.NumberAlignment = Alignment.Right).Write(Format.Alternative);
         }
 
-        private bool GetDates()
+        private bool GetDate()
         {
             CsvParserOptions csvParserOptions = new(true, ',');
             CsvUserDetailsMapping csvMapper = new();
             CsvParser<DailyVolatility> csvParser = new(csvParserOptions, csvMapper);
 
-            if (!GetDate("Day1"))
+            DateTime today = DateTime.Now;
+            bool isDatePredicted = false;
+            int maxTry = 30;
+            while (!isDatePredicted && maxTry-- > 0)
             {
-                return false;
+                try
+                {
+                    string date = today.ToString("ddMMyyyy");
+                    string json = (new WebClient()).DownloadString($"https://www1.nseindia.com/archives/nsccl/volt/FOVOLT_{date}.csv");
+                    volatilityData = csvParser.ReadFromFile($"{date}.csv", Encoding.ASCII).ToList().Select(n => n.Result);
+                    return true;
+                }
+                catch
+                {
+                    today = today.AddDays(-1);
+                }
             }
-            volatilityData = csvParser.ReadFromFile("Day1.csv", Encoding.ASCII).ToList().Select(n => n.Result);
-            return true;
-        }
-
-        private static bool GetDate(string day)
-        {
-            Console.WriteLine($"Please enter {day} in form of DDMMYYYY format for example 9th March 2022 as 09032022");
-            string date = Console.ReadLine();
-
-            if (string.IsNullOrWhiteSpace(date) || date.Length != 8)
-            {
-                Console.WriteLine("Error: Please enter a valid date");
-                return default;
-            }
-            try
-            {
-                string json = (new WebClient()).DownloadString($"https://www1.nseindia.com/archives/nsccl/volt/FOVOLT_{date}.csv");
-                File.WriteAllText($"{day}.csv", json);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: CSV not available for {date}, actual error| {ex.Message}");
-            }
-            return default;
+            return false;
         }
     }
 }
