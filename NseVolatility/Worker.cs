@@ -1,3 +1,4 @@
+using ConsoleTables;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
@@ -11,10 +12,15 @@ using TinyCsvParser;
 
 namespace NseVolatility
 {
+    public class Result
+    {
+        public string Symbol { get; set; }
+        public string Volatility { get; set; }
+        public string Chnage { get; set; }
+    }
     public class Worker : BackgroundService
     {
-        private IEnumerable<DailyVolatility> _day1CSV;
-        private IEnumerable<DailyVolatility> _day2CSV;
+        private IEnumerable<DailyVolatility> volatilityData;
 
         public Worker()
         {
@@ -33,24 +39,26 @@ namespace NseVolatility
                         Console.WriteLine("Dates are not valid please try again");
                         continue;
                     }
-                    if (null != _day1CSV && null != _day2CSV)
+                    if (null != volatilityData)
                     {
-                        foreach (DailyVolatility item in _day1CSV.OrderBy(n => n.CurrentDayVolatility))
+                        IEnumerable<Result> results = volatilityData.OrderByDescending(n => n.CurrentDayVolatility).Select(item => new Result
                         {
-                            DailyVolatility day2Item = _day2CSV.FirstOrDefault(n => string.Equals(n.Symbol, item.Symbol, StringComparison.OrdinalIgnoreCase));
-                            if (null == day2Item)
-                            {
-                                Console.WriteLine($"Error: Symbol {item.Symbol} not found for previous day");
-                            }
-                            double difference = Math.Round((item.CurrentDayVolatility - day2Item.CurrentDayVolatility) * 100, 2);
-
-                            Console.WriteLine($"{item.Symbol} - {Math.Round(item.CurrentDayVolatility, 4) * 100}%({ difference}%)");
-                        }
+                            Symbol = item.Symbol,
+                            Volatility = $"{Math.Round(item.CurrentDayVolatility * 100, 4)}%",
+                            Chnage = $"{Math.Round((item.CurrentDayVolatility - item.PreviousDayVolatility) * 100, 2)}%"
+                        });
+                        DisplayResult(results);
                     }
                 }
                 input = Console.ReadLine();
             }
             await Task.CompletedTask;
+        }
+        private static void DisplayResult(IEnumerable<Result> results)
+        {
+            ConsoleTable
+            .From(results)
+            .Configure(o => o.NumberAlignment = Alignment.Right).Write(Format.Alternative);
         }
 
         private bool GetDates()
@@ -63,13 +71,7 @@ namespace NseVolatility
             {
                 return false;
             }
-            _day1CSV = csvParser.ReadFromFile("Day1.csv", Encoding.ASCII).ToList().Select(n => n.Result);
-
-            if (!GetDate("Day2"))
-            {
-                return false;
-            }
-            _day2CSV = csvParser.ReadFromFile("Day2.csv", Encoding.ASCII).ToList().Select(n => n.Result);
+            volatilityData = csvParser.ReadFromFile("Day1.csv", Encoding.ASCII).ToList().Select(n => n.Result);
             return true;
         }
 
