@@ -2,6 +2,7 @@ using ConsoleTables;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -66,7 +67,8 @@ namespace NseVolatility
                 try
                 {
                     string date = today.ToString("ddMMyyyy");
-                    string json = (new WebClient()).DownloadString($"https://www1.nseindia.com/archives/nsccl/volt/FOVOLT_{date}.csv");
+                    string dataReceived = (new WebClient()).DownloadString($"https://www1.nseindia.com/archives/nsccl/volt/FOVOLT_{date}.csv");
+                    File.WriteAllText($"{date}.csv", dataReceived);
                     volatilityData = csvParser.ReadFromFile($"{date}.csv", Encoding.ASCII).ToList().Select(n => n.Result);
                     return true;
                 }
