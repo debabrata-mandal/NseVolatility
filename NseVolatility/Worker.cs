@@ -16,7 +16,7 @@ namespace NseVolatility
     {
         public string Symbol { get; set; }
         public string Volatility { get; set; }
-        public string Chnage { get; set; }
+        public string Change { get; set; }
     }
     public class Worker : BackgroundService
     {
@@ -45,7 +45,7 @@ namespace NseVolatility
                         {
                             Symbol = item.Symbol,
                             Volatility = $"{Math.Round(item.CurrentDayVolatility * 100, 4)}%",
-                            Chnage = $"{Math.Round((item.CurrentDayVolatility - item.PreviousDayVolatility) * 100, 2)}%"
+                            Change = $"{Math.Round((item.CurrentDayVolatility - item.PreviousDayVolatility) * 100, 2)}%"
                         });
                         DisplayResult(results);
                     }
